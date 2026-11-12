@@ -34,6 +34,7 @@ import {
   decideTool as decidePolicy,
   fetchTargetProblem,
   fileRoots,
+  URL_TOOLS,
 } from './policy.mjs'
 
 const PORT = Number(process.env.JARVIS_BRIDGE_PORT ?? 8787)
@@ -308,7 +309,7 @@ const enforcePolicy = async (input) => {
     roots: TOOL_ROOTS,
   })
   let reason = verdict.allow ? null : verdict.reason
-  if (!reason && input.tool_name === 'WebFetch') {
+  if (!reason && URL_TOOLS.has(input.tool_name)) {
     const problem = await fetchTargetProblem(input.tool_input?.url)
     if (problem) reason = `Blocked: that address cannot be fetched (${problem}).`
   }

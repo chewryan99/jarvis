@@ -126,6 +126,33 @@ const VETO_EXEMPT = new Set([
   'openrouter__send-feedback',
 ])
 
+/**
+ * The reading half of the Playwright server, allowed in read-only mode.
+ *
+ * Every Playwright tool is named `browser_*`, so the verb rule above sees no
+ * read verb and withholds the lot — including the ones that only look. These
+ * open, read and photograph a page in JARVIS's own browser; acting on a page
+ * (click, type, fill_form, press_key, select_option, drag, file_upload,
+ * handle_dialog) and running script in it (evaluate, run_code) still need
+ * allowWrites. Where browser_navigate may go is checked separately, in
+ * checkToolUse, by the same rules as WebFetch.
+ */
+const PAGE_READ_TOOLS = new Set([
+  'browser_navigate',
+  'browser_navigate_back',
+  'browser_snapshot',
+  'browser_take_screenshot',
+  'browser_console_messages',
+  'browser_network_requests',
+  'browser_wait_for',
+  'browser_tabs',
+  'browser_resize',
+  'browser_close',
+])
+
+/** Tools whose `url` argument is vetted like WebFetch's: no LAN, loopback or metadata. */
+export const URL_TOOLS = new Set(['WebFetch', 'mcp__playwright__browser_navigate'])
+
 export function decideTool(name, allowWrites = false) {
   if (READ_ONLY_BUILTINS.has(name)) return true
   if (WRITE_BUILTINS.has(name)) return allowWrites
@@ -154,6 +181,7 @@ export function decideTool(name, allowWrites = false) {
     if (server === 'jarvis_eyes') return true
 
     const tool = mcpToolOf(name)
+    if (server === 'playwright' && PAGE_READ_TOOLS.has(tool)) return true
     if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
       return allowWrites
     }
@@ -305,10 +333,10 @@ export function checkToolUse(name, input, { allowWrites = false, cwd, roots }) {
     const problem = pathProblem(input?.[field], { cwd, roots })
     if (problem) return { allow: false, reason: `Blocked: ${problem}.` }
   }
-  if (name === 'WebFetch') {
+  if (URL_TOOLS.has(name)) {
     // The bridge's own fetches refuse the LAN and cloud metadata; the built-in
-    // fetch runs in the agent process and has no such gate, so apply the same
-    // one to the URL before it goes.
+    // fetch and the Playwright browser run outside it with no such gate, so
+    // apply the same one to the URL before it goes.
     try {
       vetTarget(input?.url)
     } catch (err) {

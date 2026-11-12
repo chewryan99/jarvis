@@ -121,3 +121,26 @@ test('only the built-ins JARVIS uses are offered', () => {
   }
   assert.ok(builtinTools(true).includes('Bash'))
 })
+
+test('Playwright can read pages in read-only mode, but not act on them', () => {
+  const pw = (tool) => `mcp__playwright__${tool}`
+  for (const tool of ['browser_navigate', 'browser_snapshot', 'browser_take_screenshot', 'browser_tabs']) {
+    assert.equal(decideTool(pw(tool)), true, tool)
+  }
+  for (const tool of ['browser_click', 'browser_type', 'browser_fill_form', 'browser_evaluate', 'browser_run_code', 'browser_file_upload']) {
+    assert.equal(decideTool(pw(tool)), false, tool)
+    assert.equal(decideTool(pw(tool), true), true, tool)
+  }
+  // The exemption is for this server only.
+  assert.equal(decideTool('mcp__otherserver__browser_navigate'), false)
+})
+
+test('Playwright cannot be navigated to the LAN, loopback or cloud metadata', () => {
+  const nav = 'mcp__playwright__browser_navigate'
+  assert.equal(allowed(nav, { url: 'https://example.com/' }), true)
+  assert.equal(allowed(nav, { url: 'http://127.0.0.1:8787/health' }), false)
+  assert.equal(allowed(nav, { url: 'http://192.168.1.1/' }), false)
+  assert.equal(allowed(nav, { url: 'http://169.254.169.254/latest/meta-data/' }), false)
+  assert.equal(allowed(nav, { url: 'file:///C:/Users' }), false)
+  assert.equal(allowed(nav, { url: 'http://127.0.0.1:5173/' }, true), false)
+})

@@ -152,7 +152,8 @@ is roughly:
 - **Images & video** — `higgsfield`, `openrouter-image`, `palmier-pro`
 - **Voice** — `elevenlabs`
 - **Your phone** — `android`
-- **The browser** — `playwright`
+- **The browser** — `playwright` (in read-only mode JARVIS can open, read and
+  screenshot public pages; clicking, typing and running script need writes)
 
 A few things you can say:
 

@@ -52,7 +52,7 @@ PICTURES AND VIDEO — these work. Use them.
     hotlinked still render — nothing is loaded by the page itself.
   - Images off this machine work the same way: a render you generated, a
     screenshot you took, any file on disk. Give it as file:///absolute/path or
-    a bare absolute path.
+    a bare absolute path — on Windows that is C:\\Users\\… or file:///C:/Users/….
   - If a search came back with pictures, SHOW the pictures. A row of thumbnails
     down the side of the headlines beats headlines alone, every time — and a
     grid of results is the whole answer to an image search, not a decoration

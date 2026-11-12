@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { BRIDGE_HTTP_URL } from '../config'
+import { diskPath } from '../lib/diskPath'
 
 /**
  * The safety boundary for model-authored markup.
@@ -13,13 +14,6 @@ import { BRIDGE_HTTP_URL } from '../config'
  * model that has, moments earlier, been reading pages off the open web.
  */
 
-/**
- * Paths that are genuinely on this machine's disk, as opposed to app-relative
- * URLs that happen to start with a slash. `/vite.svg` is one of our own static
- * assets; `/Users/you/shot.png` is a screenshot JARVIS just took.
- */
-const DISK_PATH =
-  /^\/(Users|home|root|Volumes|Applications|System|Library|private|tmp|var|opt|mnt|media|srv|data)\//
 
 /**
  * Every media URL is rewritten to point at the bridge. Two destinations, for
@@ -45,8 +39,8 @@ function rewriteSrc(el: Element, attr: 'src' | 'poster', route: 'img' | 'media')
   const raw = el.getAttribute(attr) ?? ''
   if (!raw) return
 
-  const path = raw.replace(/^file:\/\//, '')
-  if (DISK_PATH.test(path)) {
+  const path = diskPath(raw)
+  if (path) {
     el.setAttribute(attr, `${BRIDGE_HTTP_URL}/file?path=${encodeURIComponent(path)}`)
     return
   }
@@ -255,7 +249,14 @@ export function sanitisePanelHtml(html: string): string {
       // allowlisted embed. Supplying ALLOWED_TAGS/ALLOWED_ATTR replaces
       // DOMPurify's defaults wholesale, so there is deliberately no FORBID_*
       // list here — one would read as defence in depth while doing nothing.
-      ALLOWED_URI_REGEXP: /^(?:data:(?:image|video|audio)\/|file:\/\/|https?:\/\/|\/)/i,
+      //
+      // Windows disk paths (`C:\…`, `\\server\share\…`) are let through for
+      // the same reason file:// is: rewriteMedia turns every one into a /file
+      // URL on the bridge, which decides what it will actually serve. Without
+      // them DOMPurify dropped the src before the rewrite ever saw it, and no
+      // local picture could appear on Windows (adewaskar/jarvis#17). The drive
+      // form needs a single letter then a slash, so no real scheme matches it.
+      ALLOWED_URI_REGEXP: /^(?:data:(?:image|video|audio)\/|file:\/\/|https?:\/\/|\/|[a-z]:[\\/]|\\\\)/i,
     }),
     'text/html',
   )

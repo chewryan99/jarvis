@@ -24,6 +24,7 @@ import {
   watchBlades,
   watchCapture,
   watchUi,
+  watchAnnounce,
   watchConnection,
   connectedLabels,
   usingBridge,
@@ -215,6 +216,53 @@ export default function App() {
         // the difference between a conversation and a vending machine.
         listen(FOLLOW_UP_MS)
       }
+    }
+  }
+
+  // -- announcements ---------------------------------------------------------
+
+  /**
+   * Reminders the bridge pushes when they come due.
+   *
+   * Spoken in turn, never over the top of an answer: anything arriving while
+   * he is thinking or talking waits for the floor, and anything arriving before
+   * the INITIALISE click waits for the audio that click unlocks. Each one takes
+   * a turn number like a real answer, so a barge-in silences it the same way,
+   * and afterwards the mic stays open for "thank you" or "snooze it".
+   */
+  const announcements = useRef<string[]>([])
+  const announcing = useRef(false)
+
+  const drainAnnouncements = async (): Promise<void> => {
+    if (announcing.current) return
+    announcing.current = true
+    const busy = () =>
+      ['offline', 'boot', 'thinking', 'tooling', 'speaking'].includes(store.getState().phase)
+    try {
+      while (announcements.current.length) {
+        while (busy()) await new Promise((r) => setTimeout(r, 500))
+        const text = announcements.current.shift()!
+        const mine = ++turn.current
+        clearIdle()
+        const s = store.getState()
+        s.setCaption('')
+        s.pushTurn({ id: newId(), role: 'jarvis', text })
+        s.setPhase('speaking')
+        sfx.play('wake')
+        sfx.duck(true)
+        music.duck(true)
+        const spk = createSpeaker()
+        speaker.current = spk
+        spk.say(text)
+        await spk.end()
+        if (mine !== turn.current) continue
+        speaker.current = null
+        sfx.duck(false)
+        music.duck(false)
+        listen(FOLLOW_UP_MS)
+      }
+    } finally {
+      announcing.current = false
     }
   }
 
@@ -448,6 +496,10 @@ export default function App() {
         default:
           console.warn('[jarvis] unknown ui op:', op, args)
       }
+    })
+    watchAnnounce((text) => {
+      announcements.current.push(text)
+      void drainAnnouncements()
     })
     // In bridge mode the conversation lives in the agent session, which is tied
     // to the socket — so a drop silently wipes his memory while the transcript

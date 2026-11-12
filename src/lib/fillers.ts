@@ -156,6 +156,18 @@ const BY_TOOL: Rule[] = [
     lines: ['Running the query.', 'Pulling the figures.'],
   },
   {
+    tool: /^weather$|forecast/,
+    lines: ['Checking the forecast.', 'Consulting the met office.'],
+  },
+  {
+    tool: /^news$|headlines/,
+    lines: ['Pulling the headlines.', 'Checking the wires.'],
+  },
+  {
+    tool: /^convert$/,
+    lines: ['Calculating.', 'Converting.'],
+  },
+  {
     server: /\bexa\b|serper|serpapi|perplexity|tavily|brave/,
     tool: /search|\bweb\b|\bfetch\b|crawl|research/,
     lines: ['Searching.', 'Consulting the record.'],

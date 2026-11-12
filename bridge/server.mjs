@@ -22,6 +22,10 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { imagineServer } from './imagine.mjs'
+import { dailyServer } from './daily.mjs'
+import { MemoryStore, memoryPrompt } from './memory.mjs'
+import { Reminders, describeTime } from './reminders.mjs'
+import { feedsFromEnv } from './lookups.mjs'
 import { homedir, tmpdir } from 'node:os'
 import { parseEnv } from 'node:util'
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
@@ -290,6 +294,58 @@ const WORKSPACE = resolvePath(
 )
 mkdirSync(WORKSPACE, { recursive: true })
 
+/**
+ * The everyday tools' state: memory and the reminder schedule.
+ *
+ * Kept beside the workspace rather than in it, so the agent's own file tools —
+ * which a web page can try to talk it into using — never edit them directly;
+ * only the remember/forget and reminder tools do, with their limits.
+ */
+const STATE_DIR = resolvePath(process.env.JARVIS_STATE_DIR ?? join(homedir(), '.jarvis', 'state'))
+
+/**
+ * Every open interface, so a reminder that comes due can reach whichever ones
+ * are listening. A reminder that fires with nobody connected waits here for
+ * the next connection rather than being spoken to an empty room.
+ */
+const LISTENERS = new Set()
+const UNDELIVERED = []
+
+const announce = (msgs) => {
+  if (!LISTENERS.size) return UNDELIVERED.push(msgs)
+  for (const send of LISTENERS) for (const m of msgs) send(m)
+}
+
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+
+const MEMORY = DISABLED.has('daily') ? null : new MemoryStore(join(STATE_DIR, 'memory.json'))
+const REMINDERS = DISABLED.has('daily')
+  ? null
+  : new Reminders(join(STATE_DIR, 'reminders.json'), (r) => {
+      const when = describeTime(r.due)
+      console.log(`[jarvis] reminder due: ${r.text}`)
+      announce([
+        {
+          type: 'blade',
+          blade: {
+            id: `rem-${r.id}-${Date.now().toString(36)}`,
+            title: r.late ? 'MISSED REMINDER' : 'REMINDER',
+            kind: 'markup',
+            html: `<div class="hud-note hud-hot">${escapeHtml(r.text)}</div><div class="hud-sub">${r.late ? `Was due ${escapeHtml(when)}` : escapeHtml(when)}</div>`,
+            size: 'compact',
+            hold: 'sticky',
+          },
+        },
+        // "Sir" fronted: unprompted information is exactly what the persona
+        // reserves the fronted form for. A full stop after it, because the
+        // reminder's own text arrives as a sentence with its own capital.
+        { type: 'announce', text: r.late ? `Sir. This was due while I was offline: ${r.text}` : `Sir. ${r.text}` },
+      ])
+    })
+REMINDERS?.start()
+const NEWS_FEEDS = feedsFromEnv(process.env.JARVIS_NEWS_FEEDS)
+
 const TOOL_ROOTS = fileRoots({
   workspace: WORKSPACE,
   extra: (process.env.JARVIS_FILE_ROOTS ?? '')
@@ -484,6 +540,19 @@ const PROMPT_TOOLS = `Using tools:
 - If a tool fails or isn't connected, one plain sentence saying so.
 - If you don't know, say you don't know.`
 
+const PROMPT_DAILY = `
+Everyday tools (jarvis_daily):
+- You have no clock. For the time, the date, or working out "tomorrow at nine",
+  call current_time.
+- When the user tells you something worth keeping about themselves, or says
+  "remember", save it with remember — then confirm in a few words. What you
+  already remember is listed at the end of these instructions.
+- Timers and reminders: set_reminder. You will be prompted to say them when
+  due, even after this conversation ends.
+- weather, news and convert are live lookups. Prefer them to a web search for
+  those questions.
+`
+
 const SYSTEM_PROMPT = [
   PROMPT_CORE,
   PROMPT_BLADES,
@@ -491,6 +560,7 @@ const SYSTEM_PROMPT = [
   DISABLED.has('browser') ? '' : PROMPT_BROWSER,
   DISABLED.has('camera') ? '' : PROMPT_EYES,
   PROMPT_TOOLS,
+  DISABLED.has('daily') ? '' : PROMPT_DAILY,
 ].join('')
 
 /**
@@ -1114,6 +1184,12 @@ console.log(
   `[jarvis] speech ${elevenKeySource() ? `via ElevenLabs (key from ${elevenKeySource().from})` : 'using browser fallback voice'}`,
 )
 console.log(`[jarvis] model ${MODEL} · effort ${EFFORT}`)
+if (MEMORY && REMINDERS) {
+  console.log(
+    `[jarvis] everyday tools on · ${MEMORY.list().length} remembered · ${REMINDERS.list().length} reminders pending` +
+      (process.env.JARVIS_HOME_LOCATION ? ` · home ${process.env.JARVIS_HOME_LOCATION}` : ''),
+  )
+}
 console.log(
   `[jarvis] MCP servers from config: ${Object.keys(MCP_SERVERS).join(', ') || 'none'}` +
     (ACCOUNT_CONNECTORS ? ' · account connectors ON' : ' · account connectors off'),
@@ -1186,6 +1262,11 @@ wss.on('connection', (socket) => {
   const send = (msg) => {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg))
   }
+
+  // Reminders reach every open interface; any that fired while none was open
+  // are handed to this one now. The page holds them until it has a voice.
+  LISTENERS.add(send)
+  for (const msgs of UNDELIVERED.splice(0)) for (const m of msgs) send(m)
 
   /**
    * Which question the agent is currently answering.
@@ -1305,6 +1386,10 @@ wss.on('connection', (socket) => {
     // interface is the interface talking about itself, not work being done for
     // the user, and the badge would be describing the very thing they can see.
     if (name.startsWith('mcp__jarvis_ui__')) return
+    // Checking the clock or noting a fact takes milliseconds; a "Retrieving."
+    // filler in front of "Remembered, sir" is noise. The lookups that touch
+    // the network (weather, news, convert) still announce themselves.
+    if (/^mcp__jarvis_daily__(current_time|remember|recall|forget|set_reminder|list_reminders|cancel_reminder)$/.test(name)) return
     if (decideTool(name)) return sendTurn({ type: 'tool', name })
     if (id) heldTools.set(id, name)
   }
@@ -1349,12 +1434,26 @@ wss.on('connection', (socket) => {
         ...(DISABLED.has('imagine')
           ? {}
           : { jarvis_imagine: imagineServer({ outDir: join(WORKSPACE, 'images') }) }),
+        // The clock, memory, reminders, weather, news and conversions.
+        ...(MEMORY && REMINDERS
+          ? {
+              jarvis_daily: dailyServer({
+                memory: MEMORY,
+                reminders: REMINDERS,
+                feeds: NEWS_FEEDS,
+                homeLocation: process.env.JARVIS_HOME_LOCATION?.trim() || null,
+                imperial: process.env.JARVIS_UNITS === 'imperial',
+              }),
+            }
+          : {}),
       },
       // A plain system prompt, not the claude_code preset. The preset is
       // tuned for a coding agent — verbose, file-oriented, and a large chunk
       // of input tokens on every turn. Replacing it makes the persona stick,
       // keeps answers short enough to speak, and cuts cost per turn.
-      systemPrompt: SYSTEM_PROMPT,
+      // Read at connection time, so a fact saved in the last conversation is
+      // simply known in this one.
+      systemPrompt: SYSTEM_PROMPT + (MEMORY ? memoryPrompt(MEMORY) : ''),
       // Run from JARVIS's own workspace rather than the home directory. MCP
       // discovery does not depend on it — settingSources is empty and the
       // servers are passed in explicitly above — and file tools resolve
@@ -1628,6 +1727,7 @@ wss.on('connection', (socket) => {
 
   socket.on('close', () => {
     console.log('[jarvis] client disconnected')
+    LISTENERS.delete(send)
     closed = true
     deliver?.(null)
     session.close?.()

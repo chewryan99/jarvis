@@ -101,6 +101,20 @@ export function watchUi(fn: (op: string, args: any) => void) {
 }
 
 /**
+ * Something the bridge wants said without being asked — a reminder coming due.
+ *
+ * Unlike panels these must not be lost to timing: the bridge hands over any
+ * that fired while no page was open the moment this socket connects, which can
+ * be before the app has registered a handler. So they wait here until it has.
+ */
+let onAnnounce: ((text: string) => void) | null = null
+const unannounced: string[] = []
+export function watchAnnounce(fn: (text: string) => void) {
+  onAnnounce = fn
+  for (const text of unannounced.splice(0)) fn(text)
+}
+
+/**
  * Connection state, for the UI.
  *
  *   'open'        — first connection of the page.
@@ -207,6 +221,9 @@ function dispatch(ws: WebSocket) {
       // A `ui` frame with no args is normal — reset and clear take none — so an
       // absent args object is an empty one, not a reason to drop the command.
       onUi?.(msg.op, (msg.args ?? {}) as Record<string, unknown>)
+    } else if (msg.type === 'announce' && msg.text) {
+      if (onAnnounce) onAnnounce(msg.text)
+      else unannounced.push(msg.text)
     }
   })
 }

@@ -185,6 +185,11 @@ export function decideTool(name, allowWrites = false) {
     // the allowlist, and nothing it does reaches past this machine's own disk.
     if (server === 'jarvis_imagine') return true
 
+    // The everyday tools (daily.mjs): clock, memory, reminders and keyless
+    // lookups. They write only their own state files, through their own
+    // limits, and fetch only public data through net.mjs.
+    if (server === 'jarvis_daily') return true
+
     const tool = mcpToolOf(name)
     if (server === 'playwright' && PAGE_READ_TOOLS.has(tool)) return true
     if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {

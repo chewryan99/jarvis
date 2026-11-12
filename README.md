@@ -173,6 +173,29 @@ A few things you can say:
 > to let them in, and `JARVIS_MCP_SERVERS` to choose which `~/.claude.json`
 > servers JARVIS gets.
 
+### Everyday tools, built in and free
+
+No accounts or keys. All of these work in read-only mode:
+
+- **Clock** — he has no clock of his own, so `current_time` answers the time
+  and date, and anchors "tomorrow at nine".
+- **Memory** — *"Remember my wife's birthday is the third of March."* Facts are
+  kept in `~/.jarvis/state/memory.json` and he knows them in every later
+  conversation. *"Forget that"* removes one.
+- **Timers and reminders** — *"Remind me in twenty minutes to take the pizza
+  out."* The bridge keeps the schedule (it survives restarts) and he says it
+  out loud when it comes due, with a card on screen. One that came due while
+  JARVIS was off is said, as missed, the next time he is.
+- **Weather** — Open-Meteo. Set `JARVIS_HOME_LOCATION` so *"Do I need an
+  umbrella?"* needs no city, and `JARVIS_UNITS=imperial` for °F and mph.
+- **News** — headlines from RSS feeds (BBC, NPR, Hacker News, The Verge by
+  default), on screen with their pictures. Choose your own with
+  `JARVIS_NEWS_FEEDS`.
+- **Conversions** — units, and currencies at the European Central Bank's daily
+  rates.
+
+`JARVIS_DISABLE=daily` turns the set off.
+
 ### JARVIS controls the interface
 
 He drives the UI through MCP tools the bridge exposes:
@@ -241,7 +264,11 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 | `JARVIS_ALLOW_WRITES` | off | `1` allows effectful tools (see below) |
 | `JARVIS_MCP_SERVERS` | all configured | Comma-separated `~/.claude.json` servers to pass on; empty passes none |
 | `JARVIS_ACCOUNT_CONNECTORS` | off | `1` lets your claude.ai account's connectors join the session |
-| `JARVIS_DISABLE` | none | Comma-separated capabilities to leave out: `browser`, `camera`, `interface` |
+| `JARVIS_DISABLE` | none | Comma-separated capabilities to leave out: `browser`, `camera`, `interface`, `imagine`, `daily` |
+| `JARVIS_HOME_LOCATION` | none | Where "the weather" means when no place is named, e.g. `Kuala Lumpur` |
+| `JARVIS_UNITS` | metric | `imperial` reports weather in °F, mph and inches |
+| `JARVIS_NEWS_FEEDS` | BBC, NPR, HN, The Verge | `name=url,name=url` RSS or Atom feeds, replacing the defaults |
+| `JARVIS_STATE_DIR` | `~/.jarvis/state` | Where memory and the reminder schedule are kept |
 | `JARVIS_ALLOWED_ORIGINS` | local dev | Extra WebSocket origins to accept |
 | `JARVIS_ALLOW_NO_ORIGIN` | off | Accept connections with no `Origin` header |
 | `JARVIS_WORKSPACE` | `~/.jarvis/workspace` | The agent's working directory; file tools are confined to it and the temp directory |

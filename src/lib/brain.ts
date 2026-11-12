@@ -65,6 +65,11 @@ export function watchBlades(fn: (blade: Blade) => void): void {
  * server to volunteer anything. On that backend this watcher simply never
  * fires and the interface stays exactly as it ships.
  */
+/** Reminders and anything else the bridge says unprompted. Bridge mode only. */
+export function watchAnnounce(fn: (text: string) => void): void {
+  if (usingBridge) bridge.watchAnnounce(fn)
+}
+
 export function watchUi(fn: (op: string, args: any) => void): void {
   if (usingBridge) bridge.watchUi(fn)
 }

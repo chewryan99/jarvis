@@ -22,6 +22,7 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { homedir, tmpdir } from 'node:os'
+import { parseEnv } from 'node:util'
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
@@ -498,12 +499,36 @@ const SYSTEM_PROMPT = [
  * never sees it: it POSTs text to /tts here and gets audio back.
  */
 function elevenKey() {
-  if (process.env.ELEVENLABS_API_KEY) return process.env.ELEVENLABS_API_KEY
+  return elevenKeySource()?.key ?? null
+}
+
+/**
+ * The project's .env.local (where `elevenlabs onboard` saves the key) is read
+ * here, privately — not loaded into process.env, which the agent's child
+ * process and its shell tool would inherit.
+ */
+const LOCAL_ENV = (() => {
+  try {
+    const path = new URL('../.env.local', import.meta.url)
+    return parseEnv(readFileSync(path, 'utf8'))
+  } catch {
+    return {}
+  }
+})()
+
+function elevenKeySource() {
+  if (process.env.ELEVENLABS_API_KEY) {
+    return { key: process.env.ELEVENLABS_API_KEY, from: 'environment' }
+  }
+  if (LOCAL_ENV.ELEVENLABS_API_KEY?.trim()) {
+    return { key: LOCAL_ENV.ELEVENLABS_API_KEY.trim(), from: '.env.local' }
+  }
   try {
     const cfg = JSON.parse(
       readFileSync(join(homedir(), '.claude.json'), 'utf8'),
     )
-    return cfg.mcpServers?.elevenlabs?.env?.ELEVENLABS_API_KEY ?? null
+    const key = cfg.mcpServers?.elevenlabs?.env?.ELEVENLABS_API_KEY
+    return key ? { key, from: 'MCP config' } : null
   } catch {
     return null
   }
@@ -1084,7 +1109,7 @@ if (!LOOPBACK) {
   )
 }
 console.log(
-  `[jarvis] speech ${elevenKey() ? 'via ElevenLabs (key from MCP config)' : 'using browser fallback voice'}`,
+  `[jarvis] speech ${elevenKeySource() ? `via ElevenLabs (key from ${elevenKeySource().from})` : 'using browser fallback voice'}`,
 )
 console.log(`[jarvis] model ${MODEL} · effort ${EFFORT}`)
 console.log(

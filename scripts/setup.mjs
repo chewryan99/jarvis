@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { parseEnv } from 'node:util';
 
 const tick = '  ok  ';
 const warn = ' note ';
@@ -79,6 +80,14 @@ try {
 function findElevenLabsKey() {
   if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_API_KEY.trim()) {
     return 'environment (ELEVENLABS_API_KEY)';
+  }
+  try {
+    const local = parseEnv(readFileSync(new URL('../.env.local', import.meta.url), 'utf8'));
+    if (local.ELEVENLABS_API_KEY && local.ELEVENLABS_API_KEY.trim()) {
+      return '.env.local';
+    }
+  } catch {
+    // no .env.local — fine
   }
   try {
     const raw = readFileSync(claudeJsonPath, 'utf8');

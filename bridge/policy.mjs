@@ -180,6 +180,11 @@ export function decideTool(name, allowWrites = false) {
     // indicator the user can see for as long as it is live.
     if (server === 'jarvis_eyes') return true
 
+    // Free image generation (imagine.mjs). It fetches one picture from a fixed
+    // host and writes it into the workspace — generation, like higgsfield on
+    // the allowlist, and nothing it does reaches past this machine's own disk.
+    if (server === 'jarvis_imagine') return true
+
     const tool = mcpToolOf(name)
     if (server === 'playwright' && PAGE_READ_TOOLS.has(tool)) return true
     if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {

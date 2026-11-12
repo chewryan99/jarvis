@@ -149,7 +149,11 @@ ones you name in `JARVIS_MCP_SERVERS`. Depending on what you have installed, tha
 is roughly:
 
 - **Web & search** — `exa`, `serper`, `serpapi`
-- **Images & video** — `higgsfield`, `openrouter-image`, `palmier-pro`
+- **Images & video** — `higgsfield`, `openrouter-image`, `palmier-pro`. With
+  none of these, JARVIS still generates images through his built-in
+  `generate_image`, on Pollinations: free with no key (one picture every 45
+  seconds, watermarked), or set `POLLINATIONS_API_KEY` for better models.
+  `JARVIS_DISABLE=imagine` turns it off.
 - **Voice** — `elevenlabs`
 - **Your phone** — `android`
 - **The browser** — `playwright` (in read-only mode JARVIS can open, read and

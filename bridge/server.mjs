@@ -21,6 +21,7 @@ import { displayServer } from './panels.mjs'
 import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
+import { imagineServer } from './imagine.mjs'
 import { homedir, tmpdir } from 'node:os'
 import { parseEnv } from 'node:util'
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
@@ -1344,6 +1345,10 @@ wss.on('connection', (socket) => {
           : { jarvis_chrome: chromeServer({ allowWrites: ALLOW_WRITES }) }),
         // The camera, which unlike everything else here has to ask and wait.
         ...(DISABLED.has('camera') ? {} : { jarvis_eyes: visionServer(ask) }),
+        // Free image generation, saved into the workspace so /file can serve it.
+        ...(DISABLED.has('imagine')
+          ? {}
+          : { jarvis_imagine: imagineServer({ outDir: join(WORKSPACE, 'images') }) }),
       },
       // A plain system prompt, not the claude_code preset. The preset is
       // tuned for a coding agent — verbose, file-oriented, and a large chunk

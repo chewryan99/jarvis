@@ -99,7 +99,7 @@ const BY_TOOL: Rule[] = [
   // server alone would send every generate_video to "Rendering."
   { tool: /video|footage|\bclip\b|\breel\b|talking_head/, lines: FOOTAGE },
   {
-    server: /higgsfield|openrouter-image|dalle|flux|midjourney/,
+    server: /higgsfield|openrouter-image|jarvis_imagine|dalle|flux|midjourney/,
     tool: /image|photo|thumbnail|render|upscale|seedream/,
     lines: ['Rendering.', 'Composing it now.'],
   },
